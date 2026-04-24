@@ -44,7 +44,7 @@ def explore_s3_task(**context):
     )
 
 with DAG(
-    dag_id="etl_oracle_pipeline",
+    dag_id="etl_pipeline",
     start_date=datetime(2024, 1, 1),
     schedule_interval="@daily",
     catchup=False,
