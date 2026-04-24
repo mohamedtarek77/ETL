@@ -1,0 +1,5 @@
+id,product,price,quantity,date,total_price
+1,laptop,1000,2,2026-01-01,2000
+2,phone,500,3,2026-01-02,1500
+3,tablet,300,0,2026-01-03,0
+4,mouse,20,10,2026-01-04,200

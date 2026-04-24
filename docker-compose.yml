@@ -1,0 +1,325 @@
+
+
+# ################################################################
+
+
+# services:
+
+#   localstack:
+#     image: localstack/localstack:3.0
+#     container_name: localstack
+#     ports:
+#       - "4566:4566"
+#     environment:
+#       - SERVICES=s3
+#       - DEBUG=0
+#       - HOSTNAME_EXTERNAL=localstack
+#     volumes:
+#       - localstack_data:/var/lib/localstack
+#       - s3_downloads:/downloads
+#     networks:
+#       - airflow_network
+#     healthcheck:
+#       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 10
+#       start_period: 15s
+
+#   localstack-init:
+#     image: amazon/aws-cli:latest
+#     container_name: localstack-init
+#     depends_on:
+#       localstack:
+#         condition: service_healthy
+#     environment:
+#       - AWS_ACCESS_KEY_ID=test
+#       - AWS_SECRET_ACCESS_KEY=test
+#       - AWS_DEFAULT_REGION=us-east-1
+#     entrypoint: ["/bin/bash", "-c"]
+#     command:
+#       - |
+#         echo '>>> Creating S3 bucket...' &&
+#         aws --endpoint-url=http://localstack:4566 --no-sign-request s3 mb s3://my-data-bucket --region us-east-1 &&
+#         echo '>>> Creating sample CSV...' &&
+#         printf 'id,name,value\n1,test-record,100\n2,another-record,200\n' > /tmp/sample.csv &&
+#         aws --endpoint-url=http://localstack:4566 --no-sign-request --region us-east-1 s3 cp /tmp/sample.csv s3://my-data-bucket/sample/sample.csv --no-checksum-algorithm &&
+#         echo '>>> Done! Bucket ready.'
+#     networks:
+#       - airflow_network
+
+#   s3-ui:
+#     image: cloudlena/s3manager:latest
+#     container_name: s3-ui
+#     ports:
+#       - "8888:8080"
+#     environment:
+#       - ENDPOINT=localstack:4566
+#       - ACCESS_KEY_ID=test
+#       - SECRET_ACCESS_KEY=test
+#       - REGION=us-east-1
+#       - USE_SSL=false
+#       - FORCE_PATH_STYLE=true
+#     depends_on:
+#       localstack:
+#         condition: service_healthy
+#     networks:
+#       - airflow_network
+
+#   airflow-init:
+#     build: .                          # ← بيبني من الـ Dockerfile
+#     image: airflow-custom:latest      # ← اسم الـ image المبني
+#     container_name: airflow-init
+#     depends_on:
+#       localstack:
+#         condition: service_healthy
+#     env_file:
+#       - .env
+#     environment:
+#       - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+#       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+#       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+#     volumes:
+#       - airflow_db:/opt/airflow
+#       - ./dags:/opt/airflow/dags
+#       - ./scripts:/opt/airflow/scripts
+#       - ./data:/opt/airflow/data
+#     entrypoint: ["/bin/bash", "-c"]
+#     command:
+#       - |
+#         echo '>>> Running DB migration...' &&
+#         airflow db migrate &&
+#         echo '>>> Creating admin user...' &&
+#         airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@test.com || true &&
+#         echo '>>> Airflow init complete!'
+#     networks:
+#       - airflow_network
+
+#   airflow-webserver:
+#     image: airflow-custom:latest      # ← نفس الـ image المبني
+#     container_name: airflow-webserver
+#     depends_on:
+#       airflow-init:
+#         condition: service_completed_successfully
+#     env_file:
+#       - .env
+#     environment:
+#       - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+#       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+#       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+#       - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
+#     volumes:
+#       - airflow_db:/opt/airflow
+#       - ./dags:/opt/airflow/dags
+#       - ./scripts:/opt/airflow/scripts
+#       - ./data:/opt/airflow/data
+#     ports:
+#       - "8080:8080"
+#     command: webserver
+#     networks:
+#       - airflow_network
+#     restart: on-failure
+
+#   airflow-scheduler:
+#     image: airflow-custom:latest      # ← نفس الـ image المبني
+#     container_name: airflow-scheduler
+#     depends_on:
+#       airflow-init:
+#         condition: service_completed_successfully
+#     env_file:
+#       - .env
+#     environment:
+#       - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+#       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+#       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+#     volumes:
+#       - airflow_db:/opt/airflow
+#       - ./dags:/opt/airflow/dags
+#       - ./scripts:/opt/airflow/scripts
+#       - ./data:/opt/airflow/data
+#     command: scheduler
+#     networks:
+#       - airflow_network
+#     restart: on-failure
+
+# volumes:
+#   airflow_db:
+#   localstack_data:
+#   s3_downloads:
+
+# networks:
+#   airflow_network:
+#     driver: bridge
+
+########################################
+
+
+services:
+
+  localstack:
+    image: localstack/localstack:3.0
+    container_name: localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEBUG=0
+      - HOSTNAME_EXTERNAL=localstack
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - s3_downloads:/downloads
+    networks:
+      - airflow_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  localstack-init:
+    image: amazon/aws-cli:latest
+    container_name: localstack-init
+    depends_on:
+      localstack:
+        condition: service_healthy
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo '>>> Creating S3 bucket...' &&
+        aws --endpoint-url=http://localstack:4566 --no-sign-request s3 mb s3://my-data-bucket --region us-east-1 &&
+        echo '>>> Creating sample CSV...' &&
+        printf 'id,name,value\n1,test-record,100\n2,another-record,200\n' > /tmp/sample.csv &&
+        aws --endpoint-url=http://localstack:4566 --no-sign-request --region us-east-1 s3 cp /tmp/sample.csv s3://my-data-bucket/sample/sample.csv --no-checksum-algorithm &&
+        echo '>>> Done! Bucket ready.'
+    networks:
+      - airflow_network
+
+  s3-ui:
+    image: cloudlena/s3manager:latest
+    container_name: s3-ui
+    ports:
+      - "8888:8080"
+    environment:
+      - ENDPOINT=localstack:4566
+      - ACCESS_KEY_ID=test
+      - SECRET_ACCESS_KEY=test
+      - REGION=us-east-1
+      - USE_SSL=false
+      - FORCE_PATH_STYLE=true
+    depends_on:
+      localstack:
+        condition: service_healthy
+    networks:
+      - airflow_network
+
+  postgres:
+    image: postgres:15
+    container_name: airflow-postgres
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - airflow_network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  airflow-init:
+    build: .                          # ← بيبني من الـ Dockerfile
+    image: airflow-custom:latest      # ← اسم الـ image المبني
+    container_name: airflow-init
+    depends_on:
+      localstack:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    volumes:
+      - airflow_db:/opt/airflow
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+      - ./data:/opt/airflow/data
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo '>>> Running DB migration...' &&
+        airflow db migrate &&
+        echo '>>> Creating admin user...' &&
+        airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@test.com || true &&
+        echo '>>> Airflow init complete!'
+    networks:
+      - airflow_network
+
+  airflow-webserver:
+    image: airflow-custom:latest      # ← نفس الـ image المبني
+    container_name: airflow-webserver
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
+    volumes:
+      - airflow_db:/opt/airflow
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+      - ./data:/opt/airflow/data
+    ports:
+      - "8080:8080"
+    command: webserver
+    networks:
+      - airflow_network
+    restart: on-failure
+
+  airflow-scheduler:
+    image: airflow-custom:latest      # ← نفس الـ image المبني
+    container_name: airflow-scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    volumes:
+      - airflow_db:/opt/airflow
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+      - ./data:/opt/airflow/data
+    command: scheduler
+    networks:
+      - airflow_network
+    restart: on-failure
+
+volumes:
+  airflow_db:
+  postgres_data:
+  localstack_data:
+  s3_downloads:
+
+networks:
+  airflow_network:
+    driver: bridge
